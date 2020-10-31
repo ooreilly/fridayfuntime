@@ -11,12 +11,20 @@ __inline__ __device__ void periodic_bc(double *u, const int n) {
 
         if (idx >= radius) return;
 
-        assert(radius - idx - 1 >= 0);
-        assert(n - radius + idx < n);
-        swap(u[radius - idx - 1], u[n - radius + idx]);
+        // Copy the left data points [u4, u5, u6, u7]  to the right buffer 
+        // 0    1    2    3     4    5    6    7    8    9    10   11   12   13    14   15   16  17
+        // o----o----o----o--|--o----o----o----o----o----o----o----o----o----o--|--o----o----o----o
+        //u0   u1   u2   u3    u4   u5                                            u4   u5   u6   u7
+        u[n - radius + idx] = u[radius + idx];
+        //
+        // Copy the right data points [u10, u11, u12, u13] to the left buffer
+        // 0    1    2    3     4    5    6    7    8    9    10   11   12   13    14   15   16  17
+        // o----o----o----o--|--o----o----o----o----o----o----o----o----o----o--|--o----o----o----o
+        //u10  u11  u12  u13   u4   u5                        u10  u11  u12  u13                          
+        u[idx] = u[n - 2 * radius + idx];
 }
 
-__global__ void heat_kernel(double *u, const int n, const double update,
+__global__ void heat_kernel(double *v, const double *u, const int n, const double update,
                             const double *a, const double dt, const double h) {
         int idx = threadIdx.x + blockDim.x * blockIdx.x;
 
@@ -34,18 +42,18 @@ __global__ void heat_kernel(double *u, const int n, const double update,
 
         for (int i = idx + radius; i < n - radius; i += blockDim.x * gridDim.x) {
                 
-                double v = 0.0;
+                double D2u = 0.0;
                 #pragma unroll
                 for (int j = 0; j < 2 * radius + 1; ++j)
-                        v += a[i] * coeff[j] * u[i + j - radius];
+                        D2u += coeff[j] * u[i + j - radius];
 
 
                 double alpha = dt / (h * h);
-                u[i] = update * u[idx] + alpha * v;
+                v[i] = update * u[i] + alpha * a[i] * D2u;
 
         }
 
-        periodic_bc(u, n);
+        periodic_bc(v, n);
 }
 
 

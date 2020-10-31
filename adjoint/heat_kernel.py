@@ -4,21 +4,21 @@ from pycuda.autoinit import context
 import pycuda.driver as cuda
 
 
-def heat_equation(u, a, dt, h, deviceID=0, options=["--use_fast_math", "--ptxas-options=-v"],
+def heat_equation(v, u, a, dt, h, deviceID=0, options=["--use_fast_math", "--ptxas-options=-v"],
         block=(1,1,1), update=1.0):
     mp = cuda.device_attribute.MULTIPROCESSOR_COUNT
     num_blocks = 2 * cuda.Device(deviceID).get_attribute(mp)
     source = open("heat_kernel.cu").read()
     mod = SourceModule(source, options=options)
     fcn = mod.get_function("heat_kernel")
-    fcn(u.device, np.int32(u.shape[0]), np.float64(update), a.device, np.float64(dt) , np.float64(h), block=block,
+    return lambda v, u : fcn(v.device, u.device, np.int32(u.shape[0]), np.float64(update), a.device, np.float64(dt) , np.float64(h), block=block,
             grid=(num_blocks, 1, 1))
 
 def periodic_bc(u):
     source = open("heat_kernel.cu").read()
     mod = SourceModule(source)
     fcn = mod.get_function("test_periodic_bc")
-    fcn(u.device, np.int32(u.shape[0]), block=(128, 1, 1), grid=(1, 1, 1))
+    fcn(u.device, np.int32(u.shape[0]), block=(32, 1, 1), grid=(1, 1, 1))
 
 
 class Array():
